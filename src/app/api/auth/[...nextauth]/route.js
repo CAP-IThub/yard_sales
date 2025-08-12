@@ -17,35 +17,49 @@ export const authOptions = {
       },
       from: process.env.EMAIL_FROM,
       maxAge: 15 * 60, // 15 minutes
-      sendVerificationRequest: async ({ identifier, url, provider }) => {
-        // Custom email logic can go here if needed
-        // For now, use default
-        return provider.sendVerificationRequest({ identifier, url, provider });
-      },
     }),
   ],
   session: {
     strategy: "jwt",
   },
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      // Only allow preloaded, active company users
+    async signIn({ user }) {
       if (!user?.email?.endsWith("@capplc.com")) return false;
       const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
       if (!dbUser || !dbUser.isActive) return false;
       return true;
     },
-    async session({ session, token, user }) {
-      // Add role and department to session for RBAC
-      if (session?.user?.email) {
-        const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
+    async jwt({ token, user }) {
+      // On first JWT creation attach role & department
+      if (user?.email) {
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
-          session.user.role = dbUser.role;
-          session.user.department = dbUser.department;
+          token.role = dbUser.role;
+          token.department = dbUser.department;
         }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.role = token.role;
+        session.user.department = token.department;
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Role-based post-login landing
+      if (url.startsWith('http') && !url.startsWith(baseUrl)) return baseUrl; // disallow external
+      // Keep explicit callbackUrl if pointing to protected area
+      try {
+        const u = new URL(url, baseUrl);
+        if (u.pathname === '/' || u.pathname.startsWith('/login')) {
+          // Without access to token here, default user landing to /bids
+          return baseUrl + '/bids';
+        }
+        return u.toString();
+      } catch { return baseUrl; }
+    }
   },
   pages: {
     signIn: "/login",

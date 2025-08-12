@@ -36,6 +36,7 @@ model User {
   department  String?
   role        Role    @default(STAFF)
   isActive    Boolean @default(true)
+  emailVerified DateTime?
   bids        Bid[]
   createdAt   DateTime @default(now())
 }
@@ -95,4 +96,13 @@ model Idempotency {
   createdAt DateTime @default(now())
 
   @@unique([key])
+}
+
+// Added for NextAuth EmailProvider (stores magic link tokens)
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
