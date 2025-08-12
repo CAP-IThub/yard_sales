@@ -30,9 +30,10 @@ export const authOptions = {
       return true;
     },
     async jwt({ token, user }) {
-      // On first JWT creation attach role & department
-      if (user?.email) {
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
+      // Always refresh role/department each JWT callback to avoid stale role after DB changes
+      const email = user?.email || token.email;
+      if (email) {
+        const dbUser = await prisma.user.findUnique({ where: { email }, select: { role: true, department: true } });
         if (dbUser) {
           token.role = dbUser.role;
           token.department = dbUser.department;
@@ -54,8 +55,8 @@ export const authOptions = {
       try {
         const u = new URL(url, baseUrl);
         if (u.pathname === '/' || u.pathname.startsWith('/login')) {
-          // Without access to token here, default user landing to /bids
-          return baseUrl + '/bids';
+          // Send to bridging page that will redirect by role
+          return baseUrl + '/post-login';
         }
         return u.toString();
       } catch { return baseUrl; }

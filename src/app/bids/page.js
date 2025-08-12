@@ -24,7 +24,7 @@ export default async function BidsPage() {
   const { bids } = await getData(session.user.email);
   return (
     <div className="max-w-5xl mx-auto p-8 space-y-8">
-      <BrandHeader subtitle="Your Bid Activity" right={session.user.role === 'ADMIN' && <Link href="/admin/cycles" className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Admin</Link>} />
+  <BrandHeader subtitle="Your Bid Activity" right={session.user.role === 'ADMIN' && <Link href="/admin/cycles" className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Admin</Link>} />
       {bids.length === 0 && <div className="text-neutral-500 text-sm">No bids yet.</div>}
       <ul className="divide-y divide-neutral-800 border border-neutral-800 rounded-lg bg-neutral-900/60 backdrop-blur">
         {bids.map(b => (
