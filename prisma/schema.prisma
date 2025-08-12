@@ -1,0 +1,98 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum CycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum AllocationMode {
+  AUTO
+}
+
+enum BidStatus {
+  APPROVED
+  REVOKED
+  CANCELED
+}
+
+model User {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  name        String?
+  department  String?
+  role        Role    @default(STAFF)
+  isActive    Boolean @default(true)
+  bids        Bid[]
+  createdAt   DateTime @default(now())
+}
+
+model Cycle {
+  id               String       @id @default(cuid())
+  name             String
+  status           CycleStatus  @default(DRAFT)
+  allocationMode   AllocationMode @default(AUTO)
+  maxItemsPerUser  Int          @default(3)
+  openAt           DateTime?
+  closeAt          DateTime?
+  items            Item[]
+  bids             Bid[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Item {
+  id            String   @id @default(cuid())
+  cycleId       String
+  name          String
+  description   String?
+  totalQty      Int
+  maxQtyPerUser Int      @default(1)
+  allocatedQty  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cycle Cycle @relation(fields: [cycleId], references: [id])
+  bids  Bid[]
+
+  @@index([cycleId])
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  cycleId   String
+  itemId    String
+  userId    String
+  qty       Int
+  status    BidStatus @default(APPROVED)
+  createdAt DateTime  @default(now())
+
+  cycle Cycle @relation(fields: [cycleId], references: [id])
+  item  Item  @relation(fields: [itemId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([itemId, cycleId])
+  @@index([userId, cycleId])
+  @@unique([userId, itemId, cycleId])
+}
+
+model Idempotency {
+  key     String  @id
+  userId  String
+  createdAt DateTime @default(now())
+
+  @@unique([key])
+}
