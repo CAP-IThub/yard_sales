@@ -16,7 +16,7 @@ export const cycleSchema = z.object({
 export const cycleUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   maxItemsPerUser: z.number().int().min(1).optional(),
-  action: z.enum(['OPEN','CLOSE']).optional(),
+  action: z.enum(['OPEN','CLOSE','ARCHIVE','REOPEN']).optional(),
 });
 
 export const itemSchema = z.object({

@@ -5,7 +5,12 @@ import prisma from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { itemSchema } from '@/lib/validators';
 
-export async function GET(req, { params }) {
+// Force dynamic to avoid caching and align with evolving Next.js param access semantics
+export const dynamic = 'force-dynamic';
+
+export async function GET(req, { params: paramsPromise }) {
+  // In newer Next.js versions params may be a promise-like; always await
+  const params = await paramsPromise;
   const session = await getServerSession(authOptions);
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const cycleId = params.id;
@@ -13,7 +18,8 @@ export async function GET(req, { params }) {
   return NextResponse.json(items);
 }
 
-export async function POST(req, { params }) {
+export async function POST(req, { params: paramsPromise }) {
+  const params = await paramsPromise;
   const session = await getServerSession(authOptions);
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const cycleId = params.id;

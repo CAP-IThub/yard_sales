@@ -68,6 +68,15 @@ export async function PATCH(req) {
     update.status = 'CLOSED';
     update.closeAt = new Date();
   }
+  if (parse.data.action === 'ARCHIVE') {
+    if (cycle.status !== 'CLOSED') return NextResponse.json({ error: 'Only CLOSED cycles can be archived' }, { status: 400 });
+    update.status = 'ARCHIVED';
+  }
+  if (parse.data.action === 'REOPEN') {
+    if (cycle.status !== 'CLOSED') return NextResponse.json({ error: 'Only CLOSED cycles can be reopened' }, { status: 400 });
+    update.status = 'OPEN';
+    update.closeAt = null; // optional: reset close time
+  }
   const updated = await prisma.cycle.update({ where: { id }, data: update });
   return NextResponse.json(updated);
 }

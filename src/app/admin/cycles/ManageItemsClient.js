@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
+import { useConfirm } from '@/components/confirm';
 import { useRouter } from 'next/navigation';
 
 export default function ManageItemsClient({ cycleId }) {
@@ -11,6 +12,7 @@ export default function ManageItemsClient({ cycleId }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', description: '', totalQty: '', maxQtyPerUser: '' });
   const router = useRouter();
+  const confirm = useConfirm();
 
   const load = async () => {
     setLoading(true);
@@ -91,7 +93,8 @@ export default function ManageItemsClient({ cycleId }) {
   };
 
   const deleteItem = async (it) => {
-    if (!confirm(`Delete item "${it.name}"? This cannot be undone.`)) return;
+    const ok = await confirm({ title: 'Delete Item', message: `Delete item "${it.name}"? This cannot be undone.`, confirmText: 'Delete', variant: 'danger' });
+    if(!ok) return;
     setSaving(true); setError('');
     try {
       const res = await fetch(`/api/admin/items/${it.id}`, { method: 'DELETE' });
