@@ -88,6 +88,7 @@ model Bid {
   @@index([itemId, cycleId])
   @@index([userId, cycleId])
   @@unique([userId, itemId, cycleId])
+  @@index([cycleId])
 }
 
 model Idempotency {

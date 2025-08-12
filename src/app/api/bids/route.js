@@ -51,57 +51,74 @@ export async function POST(req) {
   const { selections, idempotencyKey } = parsed.data;
   if (selections.length === 0) return new Response(JSON.stringify({ error: 'Empty selections' }), { status: 400 });
 
-  const idem = await prisma.idempotency.findUnique({ where: { key: idempotencyKey } });
-  if (idem) return new Response(JSON.stringify({ error: 'Duplicate request' }), { status: 409 });
-
+  // Perform all critical validation + mutation inside a single transaction with row locks / atomic updates
   const itemIds = selections.map(s => s.itemId);
-  const items = await prisma.item.findMany({ where: { id: { in: itemIds } }, include: { cycle: true } });
-  if (items.length !== itemIds.length) return new Response(JSON.stringify({ error: 'Some items not found' }), { status: 404 });
-  const cycleId = items[0].cycleId;
-  if (!items.every(i => i.cycleId === cycleId)) return new Response(JSON.stringify({ error: 'All items must be in same cycle' }), { status: 400 });
-  const cycle = items[0].cycle;
-  if (cycle.status !== 'OPEN') return new Response(JSON.stringify({ error: 'Cycle not open' }), { status: 400 });
-
-  const existingBids = await prisma.bid.findMany({ where: { userId: user.id, cycleId } });
-  const existingByItem = Object.fromEntries(existingBids.map(b => [b.itemId, b]));
-
-  let totalQtyRequested = 0;
-  for (const sel of selections) {
-    const item = items.find(i => i.id === sel.itemId);
-    if (!item) return new Response(JSON.stringify({ error: 'Item mismatch' }), { status: 400 });
-    if (sel.qty < 1) return new Response(JSON.stringify({ error: 'Invalid qty' }), { status: 400 });
-    const existingUserQty = existingByItem[sel.itemId]?.qty || 0;
-    if (existingUserQty + sel.qty > item.maxQtyPerUser) return new Response(JSON.stringify({ error: `Exceeds per-item limit for ${item.name}` }), { status: 400 });
-    if (item.allocatedQty + sel.qty > item.totalQty) return new Response(JSON.stringify({ error: `Not enough remaining for ${item.name}` }), { status: 400 });
-    totalQtyRequested += sel.qty;
-  }
-  const userCycleTotal = existingBids.reduce((a,b)=>a+b.qty,0);
-  if (userCycleTotal + totalQtyRequested > cycle.maxItemsPerUser) return new Response(JSON.stringify({ error: 'Cycle max items per user exceeded' }), { status: 400 });
 
   const result = await prisma.$transaction(async (tx) => {
-    await tx.idempotency.create({ data: { key: idempotencyKey, userId: user.id } });
-    const updatedBids = [];
+    // Idempotency check (unique insert ensures atomicity)
+    await tx.idempotency.create({ data: { key: idempotencyKey, userId: user.id } }).catch(() => { throw new Error('Duplicate request'); });
+
+    // Lock items (FOR UPDATE) to prevent concurrent over-allocation
+    const placeholders = itemIds.map(() => '?').join(',');
+    const lockedItems = await tx.$queryRawUnsafe(`SELECT * FROM Item WHERE id IN (${placeholders}) FOR UPDATE`, ...itemIds);
+    if (lockedItems.length !== itemIds.length) throw new Error('Some items not found');
+    const cycleId = lockedItems[0].cycleId;
+    if (!lockedItems.every(i => i.cycleId === cycleId)) throw new Error('Items from different cycles');
+
+    // Lock cycle row to ensure status consistency
+    const [lockedCycle] = await tx.$queryRawUnsafe(`SELECT * FROM Cycle WHERE id = ? FOR UPDATE`, cycleId);
+    if (!lockedCycle) throw new Error('Cycle missing');
+    if (lockedCycle.status !== 'OPEN') throw new Error('Cycle not open');
+
+    // Lock existing user bids for this cycle (prevents race on per-user limits)
+    const existingBids = await tx.$queryRawUnsafe(`SELECT * FROM Bid WHERE userId = ? AND cycleId = ? FOR UPDATE`, user.id, cycleId);
+    const existingByItem = Object.fromEntries(existingBids.map(b => [b.itemId, b]));
+
+    // Build item map for quick lookup
+    const itemMap = Object.fromEntries(lockedItems.map(i => [i.id, i]));
+
+    // Validate selections using locked state
+    let totalQtyRequested = 0;
     for (const sel of selections) {
-      const item = items.find(i => i.id === sel.itemId);
-      const fresh = await tx.item.findUnique({ where: { id: item.id } });
-      if (!fresh) throw new Error('Item disappeared');
-      if (fresh.allocatedQty + sel.qty > fresh.totalQty) throw new Error(`Not enough remaining for ${item.name}`);
-      await tx.item.update({ where: { id: item.id }, data: { allocatedQty: { increment: sel.qty } } });
-      const bid = await tx.bid.upsert({
-        where: { userId_itemId_cycleId: { userId: user.id, itemId: item.id, cycleId } },
-        create: { userId: user.id, itemId: item.id, cycleId, qty: sel.qty },
-        update: { qty: { increment: sel.qty } }
-      });
-      updatedBids.push(bid);
+      if (sel.qty < 1) throw new Error('Invalid qty');
+      const item = itemMap[sel.itemId];
+      if (!item) throw new Error('Item mismatch');
+      const existingUserQty = existingByItem[sel.itemId]?.qty || 0;
+      if (existingUserQty + sel.qty > item.maxQtyPerUser) throw new Error(`Per-item limit for ${item.name}`);
+      // We use an atomic conditional update below instead of checking allocatedQty here (to avoid TOCTOU)
+      totalQtyRequested += sel.qty;
     }
-    return updatedBids;
+    const userCycleTotal = existingBids.reduce((a,b)=>a+b.qty,0);
+    if (userCycleTotal + totalQtyRequested > lockedCycle.maxItemsPerUser) throw new Error('Cycle max items per user exceeded');
+
+    const updatedBids = [];
+    // Apply each selection with atomic stock increment
+    for (const sel of selections) {
+      const item = itemMap[sel.itemId];
+      const updatedRows = await tx.$executeRawUnsafe(
+        `UPDATE Item SET allocatedQty = allocatedQty + ? WHERE id = ? AND allocatedQty + ? <= totalQty`,
+        sel.qty, sel.itemId, sel.qty
+      );
+      if (updatedRows === 0) throw new Error(`Not enough remaining for ${item.name}`);
+      // Upsert / increment bid quantity
+      const existing = existingByItem[sel.itemId];
+      if (existing) {
+        const bid = await tx.bid.update({ where: { id: existing.id }, data: { qty: existing.qty + sel.qty } });
+        existingByItem[sel.itemId] = bid; // update local
+        updatedBids.push(bid);
+      } else {
+        const bid = await tx.bid.create({ data: { userId: user.id, itemId: sel.itemId, cycleId, qty: sel.qty } });
+        existingByItem[sel.itemId] = bid;
+        updatedBids.push(bid);
+      }
+    }
+    return { bids: updatedBids, cycleId, itemIds };
   }).catch(e => ({ error: e.message || 'Transaction failed' }));
 
-  if (Array.isArray(result)) {
-    const freshItems = await prisma.item.findMany({ where: { id: { in: itemIds } } });
-    return new Response(JSON.stringify({ bids: result, items: freshItems }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  } else {
-    if (result.error.includes('Unique constraint')) return new Response(JSON.stringify({ error: 'Duplicate request' }), { status: 409 });
-    return new Response(JSON.stringify(result), { status: 400 });
+  if (result.error) {
+    if (result.error === 'Duplicate request') return new Response(JSON.stringify({ error: 'Duplicate request' }), { status: 409 });
+    return new Response(JSON.stringify({ error: result.error }), { status: 400 });
   }
+  const freshItems = await prisma.item.findMany({ where: { id: { in: result.itemIds } } });
+  return new Response(JSON.stringify({ bids: result.bids, items: freshItems }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
