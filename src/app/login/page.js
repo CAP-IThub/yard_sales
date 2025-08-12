@@ -15,7 +15,7 @@ export default function LoginPage() {
     const result = await signIn("email", {
       email,
       redirect: false,
-      callbackUrl: "/admin/cycles" // or "/" if you want to go home after login
+      callbackUrl: "/" // middleware will route based on role
     });
     setLoading(false);
     if (result?.ok) {

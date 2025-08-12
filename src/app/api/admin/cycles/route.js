@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { isAdmin } from "@/lib/rbac";
 import { cycleSchema, cycleUpdateSchema } from "@/lib/validators";
+import { broadcast } from '@/lib/events';
 
 // GET /api/admin/cycles - list cycles
 export async function GET() {
@@ -78,5 +79,11 @@ export async function PATCH(req) {
     update.closeAt = null; // optional: reset close time
   }
   const updated = await prisma.cycle.update({ where: { id }, data: update });
+  if (update.status) {
+    broadcast('cycle.status', { id: updated.id, status: updated.status });
+  }
+  if (Object.keys(update).length > 0) {
+    broadcast('cycle.updated', { id: updated.id, fields: Object.keys(update) });
+  }
   return NextResponse.json(updated);
 }

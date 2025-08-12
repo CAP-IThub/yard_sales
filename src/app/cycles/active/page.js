@@ -27,7 +27,9 @@ async function getOpenData(userId) {
 
 export default async function ActiveCyclePage() {
   const session = await getServerSession(authOptions);
-  if (!session) return <div className="p-8 text-center">Not authenticated.</div>;
+  if (!session) {
+    return <div className="p-8 text-center">Not authenticated. <a href="/login" className="underline text-blue-600">Login</a></div>;
+  }
   const dbUser = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } });
   const cycles = await getOpenData(dbUser?.id);
   return (

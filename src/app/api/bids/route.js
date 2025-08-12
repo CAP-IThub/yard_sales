@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import prisma from '@/lib/db';
 import { bidSubmitSchema } from '@/lib/validators';
+import { broadcast } from '@/lib/events';
 
 // Simple in-memory rate limiter (per user/email) - resets on server restart.
 const rateMap = new Map(); // key -> { count, ts }
@@ -120,5 +121,7 @@ export async function POST(req) {
     return new Response(JSON.stringify({ error: result.error }), { status: 400 });
   }
   const freshItems = await prisma.item.findMany({ where: { id: { in: result.itemIds } } });
+  // Broadcast minimal payload (avoid leaking user identity) - only item stock + cycle id
+  broadcast('items.updated', { cycleId: result.cycleId, items: freshItems.map(i => ({ id: i.id, allocatedQty: i.allocatedQty, totalQty: i.totalQty })) });
   return new Response(JSON.stringify({ bids: result.bids, items: freshItems }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }

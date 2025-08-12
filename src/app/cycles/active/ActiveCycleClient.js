@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/components/toast/useToast';
 
@@ -100,6 +100,39 @@ export default function ActiveCycleClient({ cycle }) {
       setSubmitting(false);
     }
   };
+
+  // SSE subscription
+  const esRef = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    const connect = () => {
+      if (esRef.current) esRef.current.close();
+      const es = new EventSource('/api/stream');
+      esRef.current = es;
+      es.onmessage = (ev) => {
+        if (cancelled) return;
+        if (!ev.data) return;
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'items.updated') {
+            if (msg.payload.cycleId !== cycle.id) return; // only this cycle
+            const byId = Object.fromEntries(msg.payload.items.map(i => [i.id, i]));
+            setItems(prev => prev.map(it => byId[it.id] ? { ...it, allocatedQty: byId[it.id].allocatedQty, totalQty: byId[it.id].totalQty } : it));
+          } else if (msg.type === 'cycle.status') {
+            if (msg.payload.id === cycle.id && msg.payload.status !== 'OPEN') {
+              toast.info(`Cycle is now ${msg.payload.status}`);
+            }
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        // Attempt simple retry after delay
+        setTimeout(() => connect(), 4000);
+      };
+    };
+    connect();
+    return () => { cancelled = true; if (esRef.current) esRef.current.close(); };
+  }, [cycle.id, toast]);
 
   return (
     <form onSubmit={submit} className="space-y-4">
