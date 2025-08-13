@@ -21,7 +21,7 @@ async function getOpenData(userId) {
   const byItem = new Map(bids.map(b=>[b.itemId, b.qty]));
   return cycles.map(c => ({
     ...c,
-    items: c.items.map(it => ({ ...it, userQty: byItem.get(it.id) || 0 }))
+    items: c.items.map(it => ({ ...it, price: it.price != null ? Number(it.price) : null, userQty: byItem.get(it.id) || 0 }))
   }));
 }
 

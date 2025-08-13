@@ -22,6 +22,7 @@ export const cycleUpdateSchema = z.object({
 export const itemSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  price: z.number().nonnegative(),
   totalQty: z.number().int().min(1),
   maxQtyPerUser: z.number().int().min(1),
 });
@@ -29,6 +30,7 @@ export const itemSchema = z.object({
 export const itemUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  price: z.number().nonnegative().optional(),
   totalQty: z.number().int().min(1).optional(),
   maxQtyPerUser: z.number().int().min(1).optional(),
 });

@@ -11,11 +11,19 @@ export const dynamic = 'force-dynamic';
 async function getData(cycleId){
   const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
   if(!cycle) return null;
-  const items = await prisma.item.findMany({ where: { cycleId }, orderBy: { createdAt: 'asc' } });
+  const itemsRaw = await prisma.item.findMany({ where: { cycleId }, orderBy: { createdAt: 'asc' } });
+  const items = itemsRaw.map(it => ({ ...it, price: it.price != null ? Number(it.price) : null }));
   const bids = await prisma.bid.findMany({ where: { cycleId }, include: { user: true, item: true } });
   const perUser = new Map();
-  bids.forEach(b => { if(!perUser.has(b.userId)) perUser.set(b.userId,{ email: b.user.email, total:0, lines:[] }); const u=perUser.get(b.userId); u.total+=b.qty; u.lines.push({ item:b.item.name, qty:b.qty }); });
-  const users = Array.from(perUser.values()).sort((a,b)=>b.total-a.total);
+  bids.forEach(b => {
+    if(!perUser.has(b.userId)) perUser.set(b.userId,{ email: b.user.email, total:0, totalValue:0, lines:[] });
+    const u=perUser.get(b.userId);
+    const price = b.item?.price != null ? Number(b.item.price) : 0;
+    u.total += b.qty;
+    u.totalValue += b.qty * price;
+    u.lines.push({ item:b.item.name, qty:b.qty });
+  });
+  const users = Array.from(perUser.values()).sort((a,b)=>b.total-a.total); // still sort by quantity as heading states
   return { cycle, items, bids, users };
 }
 
@@ -49,14 +57,15 @@ export default async function ResultsPage({ params: paramsPromise }) {
         <div className='overflow-x-auto border border-neutral-800 rounded'>
           <table className='w-full text-xs table-fixed'>
             <thead className='bg-neutral-800/60 text-neutral-400'>
-              <tr><th className='px-2 py-1 text-left w-10'>#</th><th className='px-2 py-1 text-left'>Item</th><th className='px-2 py-1 text-right w-24'>Allocated</th><th className='px-2 py-1 text-right w-20'>Total</th><th className='px-2 py-1 text-right w-24'>% Filled</th><th className='px-2 py-1 text-right w-24'>Claimers</th></tr>
+              <tr><th className='px-2 py-1 text-left w-10'>#</th><th className='px-2 py-1 text-left'>Item</th><th className='px-2 py-1 text-right w-28'>Price (₦)</th><th className='px-2 py-1 text-right w-24'>Allocated</th><th className='px-2 py-1 text-right w-20'>Total</th><th className='px-2 py-1 text-right w-24'>% Filled</th><th className='px-2 py-1 text-right w-24'>Claimers</th></tr>
             </thead>
             <tbody>
               {items.length === 0 && (<tr><td colSpan={6} className='px-2 py-6 text-center text-neutral-500'>No items.</td></tr>)}
-              {items.map((it,i)=>{ const allocated = it.allocatedQty; const pct = it.totalQty? Math.round((allocated/it.totalQty)*100):0; const claimers = claimersMap.get(it.id)?.size || 0; return (
+        {items.map((it,i)=>{ const allocated = it.allocatedQty; const pct = it.totalQty? Math.round((allocated/it.totalQty)*100):0; const claimers = claimersMap.get(it.id)?.size || 0; return (
                 <tr key={it.id} className='border-t border-neutral-800'>
                   <td className='px-2 py-1 text-neutral-500'>{i+1}</td>
-                  <td className='px-2 py-1'>{it.name}</td>
+          <td className='px-2 py-1'>{it.name}</td>
+          <td className='px-2 py-1 text-right'>{Number(it.price||0).toLocaleString('en-NG',{minimumFractionDigits:2})}</td>
                   <td className='px-2 py-1 text-right text-indigo-300 font-semibold'>{allocated}</td>
                   <td className='px-2 py-1 text-right'>{it.totalQty}</td>
                   <td className='px-2 py-1 text-right'>{pct}%</td>
@@ -67,18 +76,19 @@ export default async function ResultsPage({ params: paramsPromise }) {
         </div>
       </section>
       <section className='space-y-2'>
-        <h2 className='text-sm font-medium text-neutral-300'>Users (by total qty)</h2>
+  <h2 className='text-sm font-medium text-neutral-300'>Users (by total qty)</h2>
         <div className='overflow-x-auto border border-neutral-800 rounded'>
           <table className='w-full text-xs table-fixed'>
-            <thead className='bg-neutral-800/60 text-neutral-400'><tr><th className='px-2 py-1 text-left w-10'>#</th><th className='px-2 py-1 text-left'>User</th><th className='px-2 py-1 text-right w-24'>Total Qty</th><th className='px-2 py-1 text-left'>Breakdown</th></tr></thead>
+            <thead className='bg-neutral-800/60 text-neutral-400'><tr><th className='px-2 py-1 text-left w-10'>#</th><th className='px-2 py-1 text-left'>User</th><th className='px-2 py-1 text-right w-24'>Total Qty</th><th className='px-2 py-1 text-right w-32'>Total Value (₦)</th><th className='px-2 py-1 text-left'>Breakdown</th></tr></thead>
             <tbody>
               {users.length === 0 && (<tr><td colSpan={4} className='px-2 py-6 text-center text-neutral-500'>No bids placed.</td></tr>)}
-              {users.map((u,i)=> (
+        {users.map((u,i)=> (
                 <tr key={u.email} className='border-t border-neutral-800'>
                   <td className='px-2 py-1 text-neutral-500'>{i+1}</td>
                   <td className='px-2 py-1'>{u.email}</td>
-                  <td className='px-2 py-1 text-right text-indigo-300 font-semibold'>{u.total}</td>
-                  <td className='px-2 py-1'>{u.lines.map(l=>`${l.item}(${l.qty})`).join(', ')}</td>
+          <td className='px-2 py-1 text-right text-indigo-300 font-semibold'>{u.total}</td>
+          <td className='px-2 py-1 text-right text-emerald-300 font-semibold'>{u.totalValue.toLocaleString('en-NG',{minimumFractionDigits:2})}</td>
+          <td className='px-2 py-1'>{u.lines.map(l=>`${l.item}(${l.qty})`).join(', ')}</td>
                 </tr>
               ))}
             </tbody>

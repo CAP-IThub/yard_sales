@@ -120,7 +120,8 @@ export async function POST(req) {
     if (result.error === 'Duplicate request') return new Response(JSON.stringify({ error: 'Duplicate request' }), { status: 409 });
     return new Response(JSON.stringify({ error: result.error }), { status: 400 });
   }
-  const freshItems = await prisma.item.findMany({ where: { id: { in: result.itemIds } } });
+  const freshItemsRaw = await prisma.item.findMany({ where: { id: { in: result.itemIds } } });
+  const freshItems = freshItemsRaw.map(i => ({ ...i, price: i.price != null ? Number(i.price) : null }));
   // Broadcast minimal payload (avoid leaking user identity) - only item stock + cycle id
   broadcast('items.updated', { cycleId: result.cycleId, items: freshItems.map(i => ({ id: i.id, allocatedQty: i.allocatedQty, totalQty: i.totalQty })) });
   return new Response(JSON.stringify({ bids: result.bids, items: freshItems }), { status: 200, headers: { 'Content-Type': 'application/json' } });

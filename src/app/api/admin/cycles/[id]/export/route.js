@@ -23,7 +23,8 @@ export async function GET(req, { params }) {
   const format = url.searchParams.get('format'); // csv (default) | pdf | xlsx (re-added with caution)
 
   const bids = await prisma.bid.findMany({ where: { cycleId }, include: { user: true, item: true } });
-  const items = await prisma.item.findMany({ where: { cycleId } });
+  const itemsRaw = await prisma.item.findMany({ where: { cycleId } });
+  const items = itemsRaw.map(it => ({ ...it, price: it.price != null ? Number(it.price) : null }));
 
   if(format === 'xlsx') {
     // NOTE: sheetJS (xlsx) has outstanding advisories; internal-only use accepted. Review before external exposure.
@@ -34,6 +35,7 @@ export async function GET(req, { params }) {
     const itemsSheet = XLSX.utils.json_to_sheet(items.map(it => ({
       ID: it.id,
       Name: it.name,
+      Price: it.price,
       TotalQty: it.totalQty,
       AllocatedQty: it.allocatedQty,
       PercentFilled: it.totalQty? Math.round((it.allocatedQty/it.totalQty)*100):0,
@@ -117,6 +119,7 @@ export async function GET(req, { params }) {
     // Items table
     const itemRows = items.map(it => [
       it.name,
+      (it.price!=null? it.price.toLocaleString('en-NG',{minimumFractionDigits:2}) : '0.00'),
       it.allocatedQty,
       it.totalQty,
       it.totalQty? Math.round((it.allocatedQty/it.totalQty)*100)+'%' : '0%',
@@ -124,9 +127,9 @@ export async function GET(req, { params }) {
     ]);
     drawTable({
       title: 'Items Allocation',
-      headers: ['Item','Allocated','Total','% Filled','Claimers'],
-      rows: itemRows,
-      widths: [220,70,60,70,70]
+  headers: ['Item','Price','Allocated','Total','% Filled','Claimers'],
+  rows: itemRows,
+  widths: [180,70,60,60,70,70]
     });
 
     // Users table
@@ -151,7 +154,7 @@ export async function GET(req, { params }) {
 
   // Default CSV multipart export
   const bidsCsv = toCSV(bids.map(b => ({ id: b.id, user: b.user.email, item: b.item.name, qty: b.qty, createdAt: b.createdAt.toISOString() })));
-  const itemsCsv = toCSV(items.map(it => ({ id: it.id, name: it.name, totalQty: it.totalQty, allocatedQty: it.allocatedQty })));
+  const itemsCsv = toCSV(items.map(it => ({ id: it.id, name: it.name, price: it.price, totalQty: it.totalQty, allocatedQty: it.allocatedQty })));
   const boundary = 'CSV_BOUNDARY_' + Date.now();
   const body = `--${boundary}\nContent-Type: text/csv; charset=utf-8\nContent-Disposition: attachment; filename="items.csv"\n\n${itemsCsv}\n--${boundary}\nContent-Type: text/csv; charset=utf-8\nContent-Disposition: attachment; filename="bids.csv"\n\n${bidsCsv}\n--${boundary}--`;
   return new Response(body, { status: 200, headers: { 'Content-Type': `multipart/mixed; boundary=${boundary}` } });

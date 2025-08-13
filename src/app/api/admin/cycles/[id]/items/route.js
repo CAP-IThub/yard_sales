@@ -15,7 +15,8 @@ export async function GET(req, { params: paramsPromise }) {
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const cycleId = params.id;
   const items = await prisma.item.findMany({ where: { cycleId }, orderBy: { createdAt: 'desc' } });
-  return NextResponse.json(items);
+  const serialized = items.map(it => ({ ...it, price: it.price != null ? Number(it.price) : null }));
+  return NextResponse.json(serialized);
 }
 
 export async function POST(req, { params: paramsPromise }) {
@@ -26,10 +27,10 @@ export async function POST(req, { params: paramsPromise }) {
   const data = await req.json();
   const parsed = itemSchema.safeParse(data);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid', details: parsed.error.errors }, { status: 400 });
-  const { name, description, totalQty, maxQtyPerUser } = parsed.data;
+  const { name, description, totalQty, maxQtyPerUser, price } = parsed.data;
   const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
   if (!cycle) return NextResponse.json({ error: 'Cycle not found' }, { status: 404 });
   if (cycle.status !== 'DRAFT') return NextResponse.json({ error: 'Can only add items while cycle is DRAFT' }, { status: 400 });
-  const item = await prisma.item.create({ data: { cycleId, name, description, totalQty, maxQtyPerUser } });
-  return NextResponse.json(item, { status: 201 });
+  const item = await prisma.item.create({ data: { cycleId, name, description, totalQty, maxQtyPerUser, price } });
+  return NextResponse.json({ ...item, price: item.price != null ? Number(item.price) : null }, { status: 201 });
 }

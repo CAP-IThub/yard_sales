@@ -60,6 +60,7 @@ model Item {
   cycleId       String
   name          String
   description   String?
+  price         Decimal  @default(0)
   totalQty      Int
   maxQtyPerUser Int      @default(1)
   allocatedQty  Int      @default(0)

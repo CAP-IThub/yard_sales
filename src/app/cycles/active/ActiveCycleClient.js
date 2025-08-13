@@ -156,7 +156,7 @@ export default function ActiveCycleClient({ cycle }) {
           return (
             <div key={item.id} className="border border-neutral-800 rounded p-3 bg-neutral-800/50 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-neutral-100">{item.name}</span>
+                <span className="font-medium text-neutral-100">{item.name} <span className="text-neutral-400 font-normal text-[10px]">₦{Number(item.price||0).toLocaleString('en-NG',{minimumFractionDigits:2})}</span></span>
                 <span className="text-neutral-400">{item.allocatedQty}/{item.totalQty}</span>
               </div>
               {item.description && <div className="text-[10px] text-neutral-400 leading-snug">{item.description}</div>}

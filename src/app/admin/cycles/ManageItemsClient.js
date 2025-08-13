@@ -6,11 +6,11 @@ import { useRouter } from 'next/navigation';
 export default function ManageItemsClient({ cycleId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', totalQty: '', maxQtyPerUser: '' });
+  const [form, setForm] = useState({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '', totalQty: '', maxQtyPerUser: '' });
+  const [editForm, setEditForm] = useState({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
   const router = useRouter();
   const confirm = useConfirm();
 
@@ -36,6 +36,7 @@ export default function ManageItemsClient({ cycleId }) {
       const res = await fetch(`/api/admin/cycles/${cycleId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         name: form.name,
         description: form.description || undefined,
+        price: Number(form.price||0),
         totalQty: Number(form.totalQty),
         maxQtyPerUser: form.maxQtyPerUser ? Number(form.maxQtyPerUser) : null,
       }) });
@@ -43,7 +44,7 @@ export default function ManageItemsClient({ cycleId }) {
         const j = await res.json();
         setError(j.error || 'Failed');
       } else {
-        setForm({ name: '', description: '', totalQty: '', maxQtyPerUser: '' });
+  setForm({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
         load();
       }
     } catch (e) {
@@ -56,6 +57,7 @@ export default function ManageItemsClient({ cycleId }) {
     setEditForm({
       name: it.name || '',
       description: it.description || '',
+      price: it.price == null ? '' : String(it.price),
       totalQty: String(it.totalQty || ''),
       maxQtyPerUser: it.maxQtyPerUser == null ? '' : String(it.maxQtyPerUser)
     });
@@ -63,7 +65,7 @@ export default function ManageItemsClient({ cycleId }) {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditForm({ name: '', description: '', totalQty: '', maxQtyPerUser: '' });
+  setEditForm({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
   };
 
   const saveEdit = async (e) => {
@@ -74,7 +76,8 @@ export default function ManageItemsClient({ cycleId }) {
       const body = {
         name: editForm.name.trim(),
         description: editForm.description.trim() || undefined,
-        totalQty: editForm.totalQty ? Number(editForm.totalQty) : undefined,
+  price: editForm.price === '' ? undefined : Number(editForm.price),
+  totalQty: editForm.totalQty ? Number(editForm.totalQty) : undefined,
         maxQtyPerUser: editForm.maxQtyPerUser === '' ? null : Number(editForm.maxQtyPerUser)
       };
       const res = await fetch(`/api/admin/items/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -115,9 +118,10 @@ export default function ManageItemsClient({ cycleId }) {
   return (
     <div className="mt-4 border border-neutral-700 rounded p-4 bg-neutral-900/60">
       <h3 className="font-semibold mb-2">Items</h3>
-      <form onSubmit={submit} className="grid md:grid-cols-4 gap-2 mb-4 text-sm">
+      <form onSubmit={submit} className="grid md:grid-cols-5 gap-2 mb-4 text-sm">
         <input required placeholder="Name" className="bg-neutral-800 rounded px-2 py-1" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
         <input placeholder="Description" className="bg-neutral-800 rounded px-2 py-1" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} />
+        <input required type="number" step="0.01" min={0} placeholder="Price" className="bg-neutral-800 rounded px-2 py-1" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} />
         <input required type="number" min={1} placeholder="Total Qty" className="bg-neutral-800 rounded px-2 py-1" value={form.totalQty} onChange={e=>setForm(f=>({...f,totalQty:e.target.value}))} />
         <input type="number" min={1} placeholder="Max/User (optional)" className="bg-neutral-800 rounded px-2 py-1" value={form.maxQtyPerUser} onChange={e=>setForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
         <button className="col-span-full md:col-span-1 bg-indigo-600 hover:bg-indigo-500 transition text-white rounded px-3 py-1">Add</button>
@@ -131,9 +135,9 @@ export default function ManageItemsClient({ cycleId }) {
             return (
               <div key={it.id} className="bg-neutral-800/60 rounded px-3 py-2 text-xs space-y-2">
                 {!isEditing && (
-                  <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium text-neutral-100">{it.name}</div>
+            <div className="font-medium text-neutral-100">{it.name} <span className="text-neutral-400 font-normal text-[10px]">₦{Number(it.price||0).toLocaleString('en-NG',{minimumFractionDigits:2})}</span></div>
                       {it.description && <div className="text-neutral-400">{it.description}</div>}
                     </div>
                     <div className="flex items-center gap-4">
@@ -147,9 +151,10 @@ export default function ManageItemsClient({ cycleId }) {
                   </div>
                 )}
                 {isEditing && (
-                  <form onSubmit={saveEdit} className="grid md:grid-cols-5 gap-2 items-end">
+                  <form onSubmit={saveEdit} className="grid md:grid-cols-6 gap-2 items-end">
                     <input required placeholder="Name" className="bg-neutral-700 rounded px-2 py-1" value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} />
                     <input placeholder="Description" className="bg-neutral-700 rounded px-2 py-1" value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))} />
+                    <input required type="number" step="0.01" min={0} placeholder="Price" className="bg-neutral-700 rounded px-2 py-1" value={editForm.price} onChange={e=>setEditForm(f=>({...f,price:e.target.value}))} />
                     <input required type="number" min={1} placeholder="Total Qty" className="bg-neutral-700 rounded px-2 py-1" value={editForm.totalQty} onChange={e=>setEditForm(f=>({...f,totalQty:e.target.value}))} />
                     <input type="number" min={1} placeholder="Max/User" className="bg-neutral-700 rounded px-2 py-1" value={editForm.maxQtyPerUser} onChange={e=>setEditForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
                     <div className="flex gap-2">

@@ -9,11 +9,12 @@ export const dynamic = 'force-dynamic';
 
 async function getData(email) {
   if (!email) return { bids: [] };
-  const bids = await prisma.bid.findMany({
+  const bidsRaw = await prisma.bid.findMany({
     where: { user: { email } },
     include: { item: true, cycle: true },
     orderBy: { createdAt: 'desc' }
   });
+  const bids = bidsRaw.map(b => ({ ...b, item: { ...b.item, price: b.item.price != null ? Number(b.item.price) : null } }));
   return { bids };
 }
 
@@ -29,13 +30,13 @@ export default async function BidsPage() {
       {bids.length === 0 && <div className="text-neutral-500 text-sm">No bids yet.</div>}
       <ul className="divide-y divide-neutral-800 border border-neutral-800 rounded-lg bg-neutral-900/60 backdrop-blur">
         {bids.map((b, i) => (
-          <li key={b.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <li key={b.id} className="p-4 grid grid-cols-[1fr_auto_auto] items-center gap-6 border-neutral-800">
             <div className="space-y-1">
-              <div className="font-medium text-neutral-100 flex items-center gap-2"><span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-400">{i+1}</span>{b.item.name}</div>
+              <div className="font-medium text-neutral-100 flex items-center gap-2"><span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-400">{i+1}</span>{b.item.name} <span className="text-[10px] text-neutral-400">₦{Number(b.item.price||0).toLocaleString('en-NG',{minimumFractionDigits:2})}</span></div>
               <div className="text-xs text-neutral-500">Cycle: {b.cycle.name}</div>
             </div>
-            <div className="text-sm text-blue-300 font-semibold">Qty: {b.qty}</div>
-            <div className="text-xs text-neutral-500">{new Date(b.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })}</div>
+            <div className="text-sm text-blue-300 font-semibold text-center min-w-[70px]">Qty: {b.qty}</div>
+            <div className="text-xs text-neutral-500 text-right min-w-[150px] font-mono tabular-nums">{new Date(b.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })}</div>
           </li>
         ))}
       </ul>

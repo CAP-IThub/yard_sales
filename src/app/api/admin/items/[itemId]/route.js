@@ -20,7 +20,7 @@ export async function PATCH(req, { params }) {
     return NextResponse.json({ error: 'totalQty cannot be less than already allocated quantity' }, { status: 400 });
   }
   const updated = await prisma.item.update({ where: { id: itemId }, data: parsed.data });
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, price: updated.price != null ? Number(updated.price) : null });
 }
 
 export async function DELETE(req, { params }) {
