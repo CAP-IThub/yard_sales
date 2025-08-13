@@ -24,7 +24,7 @@ export const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().nonnegative(),
   totalQty: z.number().int().min(1),
-  maxQtyPerUser: z.number().int().min(1),
+  maxQtyPerUser: z.number().int().min(1).nullable().optional(),
 });
 
 export const itemUpdateSchema = z.object({
@@ -32,7 +32,7 @@ export const itemUpdateSchema = z.object({
   description: z.string().optional(),
   price: z.number().nonnegative().optional(),
   totalQty: z.number().int().min(1).optional(),
-  maxQtyPerUser: z.number().int().min(1).optional(),
+  maxQtyPerUser: z.number().int().min(1).nullable().optional(),
 });
 
 export const bidSubmitSchema = z.object({

@@ -62,7 +62,8 @@ model Item {
   description   String?
   price         Decimal  @default(0)
   totalQty      Int
-  maxQtyPerUser Int      @default(1)
+  // Null means no per-item limit (unlimited for users within overall cycle cap)
+  maxQtyPerUser Int?
   allocatedQty  Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

@@ -85,7 +85,7 @@ export async function POST(req) {
       const item = itemMap[sel.itemId];
       if (!item) throw new Error('Item mismatch');
       const existingUserQty = existingByItem[sel.itemId]?.qty || 0;
-      if (existingUserQty + sel.qty > item.maxQtyPerUser) throw new Error(`Per-item limit for ${item.name}`);
+  if (item.maxQtyPerUser != null && existingUserQty + sel.qty > item.maxQtyPerUser) throw new Error(`Per-item limit for ${item.name}`);
       // We use an atomic conditional update below instead of checking allocatedQty here (to avoid TOCTOU)
       totalQtyRequested += sel.qty;
     }

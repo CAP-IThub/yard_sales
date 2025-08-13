@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function ManageItemsClient({ cycleId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
+  const [form, setForm] = useState({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' }); // maxQtyPerUser blank => unlimited
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -38,7 +38,7 @@ export default function ManageItemsClient({ cycleId }) {
         description: form.description || undefined,
         price: Number(form.price||0),
         totalQty: Number(form.totalQty),
-        maxQtyPerUser: form.maxQtyPerUser ? Number(form.maxQtyPerUser) : null,
+  maxQtyPerUser: form.maxQtyPerUser === '' ? null : Number(form.maxQtyPerUser),
       }) });
       if (!res.ok) {
         const j = await res.json();
@@ -123,7 +123,9 @@ export default function ManageItemsClient({ cycleId }) {
         <input placeholder="Description" className="bg-neutral-800 rounded px-2 py-1" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} />
         <input required type="number" step="0.01" min={0} placeholder="Price" className="bg-neutral-800 rounded px-2 py-1" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} />
         <input required type="number" min={1} placeholder="Total Qty" className="bg-neutral-800 rounded px-2 py-1" value={form.totalQty} onChange={e=>setForm(f=>({...f,totalQty:e.target.value}))} />
-        <input type="number" min={1} placeholder="Max/User (optional)" className="bg-neutral-800 rounded px-2 py-1" value={form.maxQtyPerUser} onChange={e=>setForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
+  <input type="number" placeholder="Max/User (blank = unlimited)" className="bg-neutral-800 rounded px-2 py-1" value={form.maxQtyPerUser} onChange={e=>setForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
+  {/* Helper note spanning full width on small screens */}
+  <div className="col-span-full text-[10px] text-neutral-500 -mt-1">Leave Max/User blank for no per-item limit. Cycle total cap still applies.</div>
         <button className="col-span-full md:col-span-1 bg-indigo-600 hover:bg-indigo-500 transition text-white rounded px-3 py-1">Add</button>
         {error && <div className="col-span-full text-red-400 text-xs">{error}</div>}
       </form>
@@ -156,7 +158,8 @@ export default function ManageItemsClient({ cycleId }) {
                     <input placeholder="Description" className="bg-neutral-700 rounded px-2 py-1" value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))} />
                     <input required type="number" step="0.01" min={0} placeholder="Price" className="bg-neutral-700 rounded px-2 py-1" value={editForm.price} onChange={e=>setEditForm(f=>({...f,price:e.target.value}))} />
                     <input required type="number" min={1} placeholder="Total Qty" className="bg-neutral-700 rounded px-2 py-1" value={editForm.totalQty} onChange={e=>setEditForm(f=>({...f,totalQty:e.target.value}))} />
-                    <input type="number" min={1} placeholder="Max/User" className="bg-neutral-700 rounded px-2 py-1" value={editForm.maxQtyPerUser} onChange={e=>setEditForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
+                    <input type="number" placeholder="Max/User (blank = unlimited)" className="bg-neutral-700 rounded px-2 py-1" value={editForm.maxQtyPerUser} onChange={e=>setEditForm(f=>({...f,maxQtyPerUser:e.target.value}))} />
+                    <div className="md:col-span-6 text-[10px] text-neutral-500 -mt-1">Clear the field to remove the per-item limit.</div>
                     <div className="flex gap-2">
                       <button disabled={saving} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded px-3 py-1">Save</button>
                       <button type="button" onClick={cancelEdit} className="bg-neutral-600 hover:bg-neutral-500 rounded px-3 py-1">Cancel</button>

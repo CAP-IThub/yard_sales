@@ -21,7 +21,7 @@ export default function ActiveCycleClient({ cycle }) {
   const adjustQty = (item, delta) => {
     const rem = remainingFor(item);
     const cycleRemaining = cycleRemainingForUser;
-    const perItemRemaining = item.maxQtyPerUser ? item.maxQtyPerUser - (item.userQty||0) : rem;
+  const perItemRemaining = item.maxQtyPerUser != null ? item.maxQtyPerUser - (item.userQty||0) : rem;
     if (rem <= 0 || cycleRemaining <= 0 || perItemRemaining <= 0) return; // nothing to allocate
     setQuantities(q => {
       const current = Number(q[item.id] || 0);
@@ -64,7 +64,7 @@ export default function ActiveCycleClient({ cycle }) {
         setError(`Requested qty exceeds remaining for ${item.name}`);
         return;
       }
-      if (item.maxQtyPerUser && (item.userQty||0) + sel.qty > item.maxQtyPerUser) {
+            if (item.maxQtyPerUser != null && (item.userQty||0) + sel.qty > item.maxQtyPerUser) {
         setError(`Per-item limit exceeded for ${item.name}`);
         return;
       }
@@ -163,7 +163,7 @@ export default function ActiveCycleClient({ cycle }) {
           const userQty = item.userQty || 0;
           const inputValue = quantities[item.id] || '';
           const cycleCap = cycleRemainingForUser < 0 ? 0 : cycleRemainingForUser;
-          const perItemRemaining = item.maxQtyPerUser ? item.maxQtyPerUser - userQty : rem;
+                    const perItemRemaining = item.maxQtyPerUser != null ? item.maxQtyPerUser - userQty : rem;
           const maxSelectable = Math.min(rem, cycleCap || rem, perItemRemaining);
           return (
             <div key={item.id} className="border border-neutral-800 rounded p-3 bg-neutral-800/50 space-y-2">
@@ -172,7 +172,7 @@ export default function ActiveCycleClient({ cycle }) {
                 <span className="text-neutral-400">{item.allocatedQty}/{item.totalQty}</span>
               </div>
               {item.description && <div className="text-[10px] text-neutral-400 leading-snug">{item.description}</div>}
-              <div className="text-[10px] text-neutral-500 flex justify-between" title={item.maxQtyPerUser ? `Per-item limit: ${item.maxQtyPerUser} (you have ${userQty})` : ''}><span>Remaining: {rem}</span><span>You: {userQty}{item.maxQtyPerUser && <span className="text-[9px] text-neutral-600"> / {item.maxQtyPerUser}</span>}{perItemRemaining<=0 && <span className="ml-1 text-amber-500">limit</span>}</span></div>
+                            <div className="text-[10px] text-neutral-500 flex justify-between" title={item.maxQtyPerUser != null ? `Per-item limit: ${item.maxQtyPerUser} (you have ${userQty})` : ''}><span>Remaining: {rem}</span><span>You: {userQty}{item.maxQtyPerUser != null && <span className="text-[9px] text-neutral-600"> / {item.maxQtyPerUser}</span>}{item.maxQtyPerUser != null && perItemRemaining<=0 && <span className="ml-1 text-amber-500">limit</span>}</span></div>
               <div className="space-y-1">
                 <label className="block text-[10px] uppercase tracking-wide text-neutral-400">Quantity to claim</label>
                 <div className="flex items-stretch gap-1">
