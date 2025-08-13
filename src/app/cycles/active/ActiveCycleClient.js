@@ -11,7 +11,7 @@ export default function ActiveCycleClient({ cycle }) {
   const toast = useToast();
   const userClaimedTotal = items.reduce((a,b)=>a + (b.userQty||0),0);
   const cycleRemainingForUser = cycle.maxItemsPerUser - userClaimedTotal;
-  const formatNaira = (n)=> '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:2});
+  const formatNaira = (n)=> '₦ '+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:2});
   const pendingUnits = Object.entries(quantities).reduce((a,[,v])=>a + (Number(v)||0),0);
   const pendingValue = items.reduce((sum,it)=> sum + (Number(quantities[it.id]||0) * Number(it.price||0)),0);
   const claimedValue = items.reduce((sum,it)=> sum + ((it.userQty||0) * Number(it.price||0)),0);
@@ -167,9 +167,15 @@ export default function ActiveCycleClient({ cycle }) {
           const maxSelectable = Math.min(rem, cycleCap || rem, perItemRemaining);
           return (
             <div key={item.id} className="border border-neutral-800 rounded p-3 bg-neutral-800/50 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-neutral-100">{item.name} <span className="text-neutral-400 font-normal text-[10px]">₦{Number(item.price||0).toLocaleString('en-NG',{minimumFractionDigits:2})}</span></span>
-                <span className="text-neutral-400">{item.allocatedQty}/{item.totalQty}</span>
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-medium text-neutral-100">{item.name}</div>
+                  <div className="inline-block text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-emerald-400" aria-label={`Unit price for ${item.name}`}>{formatNaira(item.price || 0)}</div>
+                </div>
+                <div className="text-[11px] text-neutral-400 text-right">
+                  <div className="uppercase tracking-wide text-[9px] text-neutral-500">Allocated</div>
+                  <div>{item.allocatedQty}/{item.totalQty}</div>
+                </div>
               </div>
               {item.description && <div className="text-[10px] text-neutral-400 leading-snug">{item.description}</div>}
                             <div className="text-[10px] text-neutral-500 flex justify-between" title={item.maxQtyPerUser != null ? `Per-item limit: ${item.maxQtyPerUser} (you have ${userQty})` : ''}><span>Remaining: {rem}</span><span>You: {userQty}{item.maxQtyPerUser != null && <span className="text-[9px] text-neutral-600"> / {item.maxQtyPerUser}</span>}{item.maxQtyPerUser != null && perItemRemaining<=0 && <span className="ml-1 text-amber-500">limit</span>}</span></div>
