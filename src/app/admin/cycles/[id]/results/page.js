@@ -5,6 +5,8 @@ import prisma from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import BackNav from '@/components/BackNav';
+import nextDynamic from 'next/dynamic';
+const NotifyWinnersClient = nextDynamic(()=>import('./NotifyWinnersClient'), { ssr:false });
 
 export const dynamic = 'force-dynamic';
 
@@ -46,10 +48,11 @@ export default async function ResultsPage({ params: paramsPromise }) {
           <BackNav />
           <h1 className='text-xl font-semibold'>{cycle.name} Results</h1>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex gap-2 items-center'>
           <Link href={`/api/admin/cycles/${cycle.id}/export`} className='text-xs px-3 py-1 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200'>CSV</Link>
           <Link href={`/api/admin/cycles/${cycle.id}/export?format=xlsx`} className='text-xs px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white'>XLSX</Link>
           <Link href={`/api/admin/cycles/${cycle.id}/export?format=pdf`} className='text-xs px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white'>PDF</Link>
+          {['CLOSED','ARCHIVED'].includes(cycle.status) && <NotifyWinnersClient cycleId={cycle.id} />}
         </div>
       </div>
       <section className='space-y-2'>
