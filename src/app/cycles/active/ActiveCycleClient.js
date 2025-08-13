@@ -11,13 +11,18 @@ export default function ActiveCycleClient({ cycle }) {
   const toast = useToast();
   const userClaimedTotal = items.reduce((a,b)=>a + (b.userQty||0),0);
   const cycleRemainingForUser = cycle.maxItemsPerUser - userClaimedTotal;
+  const formatNaira = (n)=> '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:2});
+  const pendingUnits = Object.entries(quantities).reduce((a,[,v])=>a + (Number(v)||0),0);
+  const pendingValue = items.reduce((sum,it)=> sum + (Number(quantities[it.id]||0) * Number(it.price||0)),0);
+  const claimedValue = items.reduce((sum,it)=> sum + ((it.userQty||0) * Number(it.price||0)),0);
 
   const remainingFor = (item) => item.totalQty - item.allocatedQty;
 
   const adjustQty = (item, delta) => {
     const rem = remainingFor(item);
     const cycleRemaining = cycleRemainingForUser;
-    if (rem <= 0 || cycleRemaining <= 0) return; // nothing to allocate
+    const perItemRemaining = item.maxQtyPerUser ? item.maxQtyPerUser - (item.userQty||0) : rem;
+    if (rem <= 0 || cycleRemaining <= 0 || perItemRemaining <= 0) return; // nothing to allocate
     setQuantities(q => {
       const current = Number(q[item.id] || 0);
       let next = current + delta;
@@ -25,7 +30,7 @@ export default function ActiveCycleClient({ cycle }) {
       // Max cannot exceed remaining for item nor cycle remaining minus already requested for other items this submit round
       const provisional = { ...q, [item.id]: next };
       const totalRequested = Object.entries(provisional).reduce((a,[id,val]) => a + (id===item.id ? next : Number(val)||0),0);
-      const cap = Math.min(rem, cycleRemaining);
+      const cap = Math.min(rem, cycleRemaining, perItemRemaining);
       if (next > cap) next = cap;
       // Additional guard if overall requested exceeds cycleRemaining
       const otherRequested = totalRequested - next;
@@ -57,6 +62,10 @@ export default function ActiveCycleClient({ cycle }) {
       const rem = remainingFor(item);
       if (sel.qty > rem) {
         setError(`Requested qty exceeds remaining for ${item.name}`);
+        return;
+      }
+      if (item.maxQtyPerUser && (item.userQty||0) + sel.qty > item.maxQtyPerUser) {
+        setError(`Per-item limit exceeded for ${item.name}`);
         return;
       }
       // Check cycle quota remaining
@@ -136,8 +145,10 @@ export default function ActiveCycleClient({ cycle }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="text-xs text-neutral-400 flex items-center gap-4">
-        <span>Claimed: {userClaimedTotal}</span>
+      <div className="text-[11px] text-neutral-400 flex flex-wrap gap-x-6 gap-y-1">
+        <span>Claimed: {userClaimedTotal} ({formatNaira(claimedValue)})</span>
+        <span>Pending: {pendingUnits} ({formatNaira(pendingValue)})</span>
+        <span>Prospective total: {userClaimedTotal + pendingUnits} ({formatNaira(claimedValue + pendingValue)})</span>
         <span>Remaining quota: {cycleRemainingForUser < 0 ? 0 : cycleRemainingForUser}</span>
         <span>Max/user: {cycle.maxItemsPerUser}</span>
       </div>
@@ -152,7 +163,8 @@ export default function ActiveCycleClient({ cycle }) {
           const userQty = item.userQty || 0;
           const inputValue = quantities[item.id] || '';
           const cycleCap = cycleRemainingForUser < 0 ? 0 : cycleRemainingForUser;
-          const maxSelectable = Math.min(rem, cycleCap || rem);
+          const perItemRemaining = item.maxQtyPerUser ? item.maxQtyPerUser - userQty : rem;
+          const maxSelectable = Math.min(rem, cycleCap || rem, perItemRemaining);
           return (
             <div key={item.id} className="border border-neutral-800 rounded p-3 bg-neutral-800/50 space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -160,13 +172,13 @@ export default function ActiveCycleClient({ cycle }) {
                 <span className="text-neutral-400">{item.allocatedQty}/{item.totalQty}</span>
               </div>
               {item.description && <div className="text-[10px] text-neutral-400 leading-snug">{item.description}</div>}
-              <div className="text-[10px] text-neutral-500 flex justify-between"><span>Remaining: {rem}</span><span>You: {userQty}</span></div>
+              <div className="text-[10px] text-neutral-500 flex justify-between" title={item.maxQtyPerUser ? `Per-item limit: ${item.maxQtyPerUser} (you have ${userQty})` : ''}><span>Remaining: {rem}</span><span>You: {userQty}{item.maxQtyPerUser && <span className="text-[9px] text-neutral-600"> / {item.maxQtyPerUser}</span>}{perItemRemaining<=0 && <span className="ml-1 text-amber-500">limit</span>}</span></div>
               <div className="space-y-1">
                 <label className="block text-[10px] uppercase tracking-wide text-neutral-400">Quantity to claim</label>
                 <div className="flex items-stretch gap-1">
-                  <button type="button" disabled={rem===0 || cycleCap===0 || !inputValue} onClick={()=>adjustQty(item,-1)} className="px-2 py-1 text-xs bg-neutral-900 border border-neutral-700 rounded disabled:opacity-40">-</button>
+                  <button type="button" disabled={rem===0 || cycleCap===0 || perItemRemaining<=0 || !inputValue} onClick={()=>adjustQty(item,-1)} className="px-2 py-1 text-xs bg-neutral-900 border border-neutral-700 rounded disabled:opacity-40">-</button>
                   <input
-                    disabled={rem === 0 || cycleCap===0}
+                    disabled={rem === 0 || cycleCap===0 || perItemRemaining<=0}
                     type="number"
                     min={0}
                     max={maxSelectable}
@@ -176,9 +188,10 @@ export default function ActiveCycleClient({ cycle }) {
                     className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
                     aria-label={`Quantity for ${item.name}`}
                   />
-                  <button type="button" disabled={rem===0 || cycleCap===0 || (Number(inputValue)||0) >= maxSelectable} onClick={()=>adjustQty(item,1)} className="px-2 py-1 text-xs bg-neutral-900 border border-neutral-700 rounded disabled:opacity-40">+</button>
+                  <button type="button" disabled={rem===0 || cycleCap===0 || perItemRemaining<=0 || (Number(inputValue)||0) >= maxSelectable} onClick={()=>adjustQty(item,1)} className="px-2 py-1 text-xs bg-neutral-900 border border-neutral-700 rounded disabled:opacity-40">+</button>
                 </div>
                 {cycleCap===0 && <div className="text-[10px] text-amber-400">You have no remaining cycle quota.</div>}
+                {perItemRemaining<=0 && <div className="text-[10px] text-neutral-500">Per-item limit reached.</div>}
               </div>
             </div>
           );
