@@ -3,16 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
     "@prisma/client": "^6.13.0",
     "autoprefixer": "^10.4.21",
-  "next": "14.2.31",
+    "next": "14.2.31",
     "next-auth": "^4.24.11",
     "nodemailer": "^6.10.1",
     "postcss": "^8.5.6",
@@ -20,11 +21,11 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "tailwindcss": "^3.4.17",
-  "pdf-lib": "^1.17.1",
-  "xlsx": "^0.18.5",
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5",
     "zod": "^4.0.17"
-  }
-  ,"overrides": {
+  },
+  "overrides": {
     "cookie": "0.7.0"
   }
 }
