@@ -11,6 +11,8 @@ export default function ManageItemsClient({ cycleId }) {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', description: '', price: '', totalQty: '', maxQtyPerUser: '' });
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState(null);
   const router = useRouter();
   const confirm = useConfirm();
 
@@ -118,6 +120,15 @@ export default function ManageItemsClient({ cycleId }) {
   return (
     <div className="mt-4 border border-neutral-700 rounded p-4 bg-neutral-900/60">
       <h3 className="font-semibold mb-2">Items</h3>
+      {/* Bulk import section */}
+      <BulkImport
+        cycleId={cycleId}
+        importing={importing}
+        setImporting={setImporting}
+        importStatus={importStatus}
+        setImportStatus={setImportStatus}
+        onDone={()=>{ load(); }}
+      />
       <form onSubmit={submit} className="grid md:grid-cols-5 gap-2 mb-4 text-sm">
         <input required placeholder="Name" className="bg-neutral-800 rounded px-2 py-1" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
         <input placeholder="Description" className="bg-neutral-800 rounded px-2 py-1" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} />
@@ -171,6 +182,63 @@ export default function ManageItemsClient({ cycleId }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function BulkImport({ cycleId, importing, setImporting, importStatus, setImportStatus, onDone }){
+  const confirm = useConfirm();
+  const onFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const ok = await confirm({
+      title: 'Bulk import items?',
+      message: 'This will create items for this DRAFT cycle from the uploaded file.\n\nAccepted: CSV or XLSX\nColumns: Name, Description, Price, TotalQty, MaxQtyPerUser (optional).',
+      confirmText: 'Import',
+      variant: 'warn'
+    });
+    if(!ok) { e.target.value=''; return; }
+    setImportStatus(null);
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`/api/admin/cycles/${cycleId}/items/import`, { method: 'POST', body: fd });
+      const j = await res.json();
+      if(!res.ok){
+        setImportStatus({ ok:false, msg: j.error || 'Import failed' });
+      } else {
+        const msg = `Created ${j.created}, Failed ${j.failed}${j.errors?.length? ' • First error: '+(j.errors[0]?.error+' @ row '+(j.errors[0]?.row)) : ''}`;
+        setImportStatus({ ok:true, msg });
+        onDone?.();
+      }
+    } catch (err){
+      setImportStatus({ ok:false, msg: 'Network error' });
+    } finally {
+      setImporting(false);
+      e.target.value='';
+    }
+  };
+  const templateCsv = 'Name,Description,Price,TotalQty,MaxQtyPerUser\nSample item,Optional text,100000,5,2';
+  return (
+    <div className="mb-4 p-3 rounded border border-neutral-700 bg-neutral-900/50">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <label className="px-3 py-1 rounded bg-neutral-800 border border-neutral-700 cursor-pointer hover:bg-neutral-700">
+            <input type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" className="hidden" onChange={onFileChange} disabled={importing} />
+            {importing ? 'Importing…' : 'Bulk Import'}
+          </label>
+          <a
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(templateCsv)}`}
+            download={`cycle-${cycleId}-items-template.csv`}
+            className="px-3 py-1 rounded bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+          >
+            Download Template
+          </a>
+        </div>
+        <div className="text-[10px] text-neutral-500">CSV/XLSX with columns: Name, Description, Price, TotalQty, MaxQtyPerUser (blank for unlimited)</div>
+      </div>
+      {importStatus && <div className={`mt-2 text-[11px] ${importStatus.ok?'text-emerald-400':'text-red-400'}`}>{importStatus.msg}</div>}
     </div>
   );
 }
