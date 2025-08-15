@@ -33,7 +33,8 @@ export async function POST(req, { params: paramsPromise }) {
   if (cycle.status !== 'DRAFT') return NextResponse.json({ error: 'Can only add items while cycle is DRAFT' }, { status: 400 });
   // Use explicit relation connect to avoid "Argument `cycle` is missing" if client expects nested relation
   const dataToCreate = { name, description, totalQty, price, cycle: { connect: { id: cycleId } } };
-  if (maxQtyPerUser != null) dataToCreate.maxQtyPerUser = maxQtyPerUser; // else leave undefined => null in DB
+  // Explicitly set to null when blank so DB default does not override to 1
+  dataToCreate.maxQtyPerUser = (maxQtyPerUser === undefined) ? null : maxQtyPerUser;
   const item = await prisma.item.create({ data: dataToCreate });
   return NextResponse.json({ ...item, price: item.price != null ? Number(item.price) : null }, { status: 201 });
 }
