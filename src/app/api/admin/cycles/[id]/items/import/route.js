@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { isAdmin } from '@/lib/rbac';
 import prisma from '@/lib/db';
+import { roundPriceTwoDp } from '@/lib/money';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,11 @@ function toNumberOrNull(v){
   const n = typeof v === 'number' ? v : Number(String(v).replace(/[\,\s]/g,''));
   return Number.isFinite(n) ? n : null;
 }
+
+// Round to 2 decimals with custom rule based on 3rd decimal:
+// - If 3rd decimal >= 4, round up the 2nd decimal
+// - Else, truncate to 2 decimals
+// Examples: 20001.203445 -> 20001.20, 20001.294 -> 20001.30
 
 export async function POST(req, { params: paramsPromise }) {
   const params = await paramsPromise;
@@ -68,8 +74,8 @@ export async function POST(req, { params: paramsPromise }) {
     const name = String(map.name || '').trim();
     if(!name){ results.failed++; results.errors.push({ row: i+2, error: 'Missing name' }); continue; }
     const description = String(map.description || '').trim() || null;
-    const priceNum = toNumberOrNull(map.price);
-    if(priceNum === null || priceNum < 0){ results.failed++; results.errors.push({ row: i+2, error: 'Invalid price' }); continue; }
+  const priceNum = roundPriceTwoDp(map.price);
+  if(priceNum === null || priceNum < 0){ results.failed++; results.errors.push({ row: i+2, error: 'Invalid price' }); continue; }
     const totalQtyNum = Math.floor(Number(toNumberOrNull(map.totalqty)));
     if(!Number.isFinite(totalQtyNum) || totalQtyNum < 1){ results.failed++; results.errors.push({ row: i+2, error: 'Invalid total qty' }); continue; }
     const maxPer = toNumberOrNull(map.maxqtyperuser ?? map.maxperuser ?? map.maxuser);

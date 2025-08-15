@@ -4,6 +4,8 @@ import { isAdmin } from '@/lib/rbac';
 import prisma from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { itemUpdateSchema } from '@/lib/validators';
+import { roundPriceTwoDp } from '@/lib/money';
+
 
 export async function PATCH(req, { params }) {
   const session = await getServerSession(authOptions);
@@ -19,7 +21,13 @@ export async function PATCH(req, { params }) {
   if (parsed.data.totalQty !== undefined && parsed.data.totalQty < existing.allocatedQty) {
     return NextResponse.json({ error: 'totalQty cannot be less than already allocated quantity' }, { status: 400 });
   }
-  const updated = await prisma.item.update({ where: { id: itemId }, data: parsed.data });
+  const payload = { ...parsed.data };
+  if(payload.price !== undefined) {
+    const rp = roundPriceTwoDp(payload.price);
+    if(rp === null) return NextResponse.json({ error: 'Invalid price' }, { status: 400 });
+    payload.price = rp;
+  }
+  const updated = await prisma.item.update({ where: { id: itemId }, data: payload });
   return NextResponse.json({ ...updated, price: updated.price != null ? Number(updated.price) : null });
 }
 
